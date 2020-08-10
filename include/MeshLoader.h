@@ -50,6 +50,5 @@ private:
     //=========================================================================
     // private methods.
     //=========================================================================
-    void ParseStaticMesh(asdx::ResModel& model, const aiMesh* pSrcMesh);
-    void ParseSkinningMesh(asdx::ResModel& model, const aiMesh* pSrcMesh);
+    void ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh);
 };

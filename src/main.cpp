@@ -41,17 +41,17 @@ int main(int argc, char** argv)
     MeshLoader loader;
     if (!loader.Load(input.c_str(), model))
     {
-        ELOG("Error : MeshLoader::Load() Failed. path = %s", input.c_str());
+        ELOGA("Error : MeshLoader::Load() Failed. path = %s", input.c_str());
         return -1;
     }
 
     if (!asdx::SaveModel(output.c_str(), model))
     {
-        ELOG("Error : SaveModel() Fialed. path = %s", output.c_str());
+        ELOGA("Error : SaveModel() Fialed. path = %s", output.c_str());
         return -1;
     }
 
-    ILOG("Info : Model Save Successed!! output path = %s", output.c_str());
+    ILOGA("Info : Model Save OK! output path = %s", output.c_str());
 
     return 0;
 }
