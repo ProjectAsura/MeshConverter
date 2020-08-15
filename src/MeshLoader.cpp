@@ -97,38 +97,69 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
     aiColor4D  white (1.0f, 1.0f, 1.0f, 1.0f);
 
     // 頂点データのメモリを確保.
-    dstMesh.Vertices.resize(pSrcMesh->mNumVertices);
+    dstMesh.Positions.resize(pSrcMesh->mNumVertices);
+    if (pSrcMesh->HasNormals())
+    { dstMesh.TangentSpaces.resize(pSrcMesh->mNumVertices); }
 
-    auto hasBone = pSrcMesh->mNumBones > 0;
-    if (hasBone)
-    { dstMesh.SkinVertices.resize(pSrcMesh->mNumVertices); }
+    for(auto i=0; i<4; ++i)
+    {
+        if (pSrcMesh->HasTextureCoords(i))
+        { dstMesh.TexCoords[i].resize(pSrcMesh->mNumVertices); }
+    }
+
+    if (pSrcMesh->HasVertexColors(0))
+    { dstMesh.Colors.resize(pSrcMesh->mNumVertices); }
+
+    if (pSrcMesh->HasBones())
+    {
+        dstMesh.BoneIndices.resize(pSrcMesh->mNumVertices);
+        dstMesh.BoneWeights.resize(pSrcMesh->mNumVertices);
+    }
 
     for(auto i=0u; i<pSrcMesh->mNumVertices; ++i)
     {
         auto pPosition  = &(pSrcMesh->mVertices[i]);
-        auto pNormal    = &(pSrcMesh->mNormals[i]);
-        auto pTexCoord0 = (pSrcMesh->HasTextureCoords(0)) ? &(pSrcMesh->mTextureCoords[0][i]) : &zero3D;
-        auto pTexCoord1 = (pSrcMesh->HasTextureCoords(1)) ? &(pSrcMesh->mTextureCoords[1][i]) : &zero3D;
-        auto pTexCoord2 = (pSrcMesh->HasTextureCoords(2)) ? &(pSrcMesh->mTextureCoords[2][i]) : &zero3D;
-        auto pTexCoord3 = (pSrcMesh->HasTextureCoords(3)) ? &(pSrcMesh->mTextureCoords[3][i]) : &zero3D;
-        auto pTangent   = (pSrcMesh->HasTangentsAndBitangents()) ? &(pSrcMesh->mTangents[i])  : &zero3D;
-        auto pColor     = (pSrcMesh->HasVertexColors(0)) ? &(pSrcMesh->mColors[0][i]) : &white;
 
-        asdx::Vector3 N(pNormal ->x, pNormal ->y, pNormal ->z);
-        asdx::Vector3 T(pTangent->x, pTangent->y, pTangent->z);
-
-        dstMesh.Vertices[i].Position        = asdx::Vector3(pPosition->x, pPosition->y, pPosition->z);
-        dstMesh.Vertices[i].TexCoord0       = asdx::EncodeTexCoord(asdx::Vector2(pTexCoord0->x, pTexCoord0->y));
-        dstMesh.Vertices[i].TexCoord1       = asdx::EncodeTexCoord(asdx::Vector2(pTexCoord1->x, pTexCoord1->y));
-        dstMesh.Vertices[i].TexCoord2       = asdx::EncodeTexCoord(asdx::Vector2(pTexCoord2->x, pTexCoord2->y));
-        dstMesh.Vertices[i].TexCoord3       = asdx::EncodeTexCoord(asdx::Vector2(pTexCoord3->x, pTexCoord3->y));
-        dstMesh.Vertices[i].TangentSpace    = asdx::EncodeTBN(N, T, 0);
-        dstMesh.Vertices[i].Color           = asdx::ToUnorm(asdx::Vector4(pColor->r, pColor->g, pColor->b, pColor->a));
-
-        if (hasBone)
+        if (pSrcMesh->HasNormals() && pSrcMesh->HasTangentsAndBitangents())
         {
-            dstMesh.SkinVertices[i].BoneIndex       = asdx::ResBoneIndex(0, 0, 0, 0);           // 初期化.
-            dstMesh.SkinVertices[i].BoneWeights     = asdx::Vector4(0.0f, 0.0f, 0.0f, 0.0f);    // 初期化.
+            auto pNormal = &(pSrcMesh->mNormals[i]);
+            auto pTangent = &(pSrcMesh->mTangents[i]);
+
+            auto N = asdx::Vector3(pNormal->x, pNormal->y, pNormal->z);
+            auto T = asdx::Vector3(pTangent->x, pTangent->y, pTangent->z);
+
+            dstMesh.TangentSpaces[i] = EncodeTBN(N, T, 0);
+        }
+
+        if (pSrcMesh->HasNormals() && !pSrcMesh->HasTangentsAndBitangents())
+        {
+            auto pNormal = &(pSrcMesh->mNormals[i]);
+            auto N = asdx::Vector3(pNormal->x, pNormal->y, pNormal->z);
+            asdx::Vector3 T, B;
+            asdx::CalcONB(N, T, B);
+
+            dstMesh.TangentSpaces[i] = EncodeTBN(N, T, 0);
+        }
+
+        for(auto j=0; j<4; ++j)
+        {
+            if (pSrcMesh->HasTextureCoords(j))
+            {
+                auto pTexCorod = &(pSrcMesh->mTextureCoords[j][i]);
+                dstMesh.TexCoords[j][i] = asdx::EncodeTexCoord(asdx::Vector2(pTexCorod->x, pTexCorod->y));
+            }
+        }
+
+        if (pSrcMesh->HasVertexColors(0))
+        {
+            auto pColor = &(pSrcMesh->mColors[0][i]);
+            dstMesh.Colors[i] = asdx::ToUnorm(asdx::Vector4(pColor->r, pColor->g, pColor->b, pColor->a));
+        }
+
+        if (pSrcMesh->HasBones())
+        {
+            dstMesh.BoneIndices[i] = asdx::ResBoneIndex(0, 0, 0, 0);
+            dstMesh.BoneWeights[i] = asdx::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
         }
     }
 
@@ -138,79 +169,82 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         for(auto j=0u; j<pSrcMesh->mBones[i]->mNumWeights; ++j)
         {
             auto weight     = pSrcMesh->mBones[i]->mWeights[j];
-            auto boneIndex  = uint16_t(i);
-            auto boneWeight = weight.mWeight;
+            auto srcBoneIndex  = uint16_t(i);
+            auto srcBoneWeight = weight.mWeight;
 
-            auto& vertex = dstMesh.SkinVertices[weight.mVertexId];
-            auto processed = false;
+            auto& dstBoneIndex = dstMesh.BoneIndices[weight.mVertexId];
+            auto& dstBoneWeight = dstMesh.BoneWeights[weight.mVertexId];
+            auto detect = false;
 
-            if (vertex.BoneWeights.x == 0.0f)
+            if (dstBoneWeight.x == 0.0f)
             {
-                vertex.BoneIndex.Index0 = boneIndex;
-                vertex.BoneWeights.x    = boneWeight;
-                processed = true;
+                dstBoneIndex.Index0 = srcBoneIndex;
+                dstBoneWeight.x     = srcBoneWeight;
+                detect = true;
             }
-            else if (vertex.BoneWeights.y == 0.0f)
+            else if (dstBoneWeight.y == 0.0f)
             {
-                vertex.BoneIndex.Index1 = boneIndex;
-                vertex.BoneWeights.y    = boneWeight;
-                processed = true;
+                dstBoneIndex.Index1 = srcBoneIndex;
+                dstBoneWeight.y     = srcBoneWeight;
+                detect = true;
             }
-            else if (vertex.BoneWeights.z == 0.0f)
+            else if (dstBoneWeight.z == 0.0f)
             {
-                vertex.BoneIndex.Index2 = boneIndex;
-                vertex.BoneWeights.z    = boneWeight;
-                processed = true;
+                dstBoneIndex.Index2 = srcBoneIndex;
+                dstBoneWeight.z     = srcBoneWeight;
+                detect = true;
             }
-            else if (vertex.BoneWeights.w == 0.0f)
+            else if (dstBoneWeight.w == 0.0f)
             {
-                vertex.BoneIndex.Index3 = boneIndex;
-                vertex.BoneWeights.z    = boneWeight;
-                processed = true;
+                dstBoneIndex.Index3 = srcBoneIndex;
+                dstBoneWeight.z     = srcBoneWeight;
+                detect = true;
             }
 
-            if (!processed)
+            // いっぱいだった場合は，重みが一番小さい所に入れる.
+            if (!detect)
             {
-                auto mini = vertex.BoneWeights.x;
+                auto mini = dstBoneWeight.x;
                 auto idx = 0;
-                if (mini > vertex.BoneWeights.y)
+                if (mini > dstBoneWeight.y)
                 {
-                    mini = vertex.BoneWeights.y;
+                    mini = dstBoneWeight.y;
                     idx = 1;
                 }
-                if (mini > vertex.BoneWeights.z)
+                if (mini > dstBoneWeight.z)
                 {
-                    mini = vertex.BoneWeights.z;
+                    mini = dstBoneWeight.z;
                     idx = 2;
                 }
-                if (mini > vertex.BoneWeights.w)
+                if (mini > dstBoneWeight.w)
                 {
-                    mini = vertex.BoneWeights.w;
+                    mini = dstBoneWeight.w;
                     idx = 3;
                 }
 
-                if (mini > boneWeight)
+                // 入力データの方が重みが小さい場合は処理しない.
+                if (mini > srcBoneWeight)
                 { continue; }
 
                 if (idx == 0)
                 {
-                    vertex.BoneIndex.Index0 = boneIndex;
-                    vertex.BoneWeights.x    = boneWeight;
+                    dstBoneIndex.Index0 = srcBoneIndex;
+                    dstBoneWeight.x     = srcBoneWeight;
                 }
                 else if (idx == 1)
                 {
-                    vertex.BoneIndex.Index1 = boneIndex;
-                    vertex.BoneWeights.y    = boneWeight;
+                    dstBoneIndex.Index1 = srcBoneIndex;
+                    dstBoneWeight.y     = srcBoneWeight;
                 }
                 else if (idx == 2)
                 {
-                    vertex.BoneIndex.Index2 = boneIndex;
-                    vertex.BoneWeights.z    = boneWeight;
+                    dstBoneIndex.Index2 = srcBoneIndex;
+                    dstBoneWeight.z     = srcBoneWeight;
                 }
                 else if (idx == 3)
                 {
-                    vertex.BoneIndex.Index3 = boneIndex;
-                    vertex.BoneWeights.w    = boneWeight;
+                    dstBoneIndex.Index3 = srcBoneIndex;
+                    dstBoneWeight.w     = srcBoneWeight;
                 }
             }
         }
@@ -235,146 +269,174 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         std::vector<uint32_t> remap(vertexIndices.size());
 
         // 重複データを削除するための再マッピング用インデックスを生成.
-        size_t vertexCount;
-        if (hasBone)
+        meshopt_Stream streams[9];
+        streams[0].data     = dstMesh.Positions.data();
+        streams[0].size     = sizeof(dstMesh.Positions[0]) * dstMesh.Positions.size();
+        streams[0].stride   = sizeof(dstMesh.Positions[0]);
+
+        auto idx = 1;
+        if (!dstMesh.TangentSpaces.empty())
         {
-            meshopt_Stream streams[2];
-            streams[0].data     = dstMesh.Vertices.data();
-            streams[0].size     = dstMesh.Vertices.size() * sizeof(dstMesh.Vertices[0]);
-            streams[0].stride   = sizeof(dstMesh.Vertices[0]);
+            streams[idx].data   = dstMesh.TangentSpaces.data();
+            streams[idx].size   = sizeof(dstMesh.TangentSpaces[0]) * dstMesh.TangentSpaces.size();
+            streams[idx].stride = sizeof(dstMesh.TangentSpaces[0]);
+            idx++;
+        }
 
-            streams[1].data     = dstMesh.SkinVertices.data();
-            streams[1].size     = dstMesh.SkinVertices.size() * sizeof(dstMesh.SkinVertices[0]);
-            streams[1].stride   = sizeof(dstMesh.SkinVertices[0]);
+        if (!dstMesh.Colors.empty())
+        {
+            streams[idx].data   = dstMesh.Colors.data();
+            streams[idx].size   = sizeof(dstMesh.Colors[0]) * dstMesh.Colors.size();
+            streams[idx].stride = sizeof(dstMesh.Colors[0]);
+            idx++;
+        }
 
-            vertexCount = meshopt_generateVertexRemapMulti(
-                remap.data(),
-                vertexIndices.data(),
-                vertexIndices.size(),
-                dstMesh.Vertices.size(),
-                streams,
-                2
-            );
+        for(auto i=0; i<4; ++i)
+        {
+            if (!dstMesh.TexCoords[i].empty())
+            {
+                streams[idx].data   = dstMesh.TexCoords[i].data();
+                streams[idx].size   = sizeof(dstMesh.TexCoords[i][0]) * dstMesh.TexCoords[i].size();
+                streams[idx].stride = sizeof(dstMesh.TexCoords[i][0]);
+                idx++;
+            }
+        }
 
-            std::vector<asdx::ResMeshVertex> vertices(vertexCount);
-            std::vector<asdx::ResMeshSkinVertex> skinVertices(vertexCount);
-            std::vector<uint32_t> indices(vertexIndices.size());
+        if (!dstMesh.BoneIndices.empty())
+        {
+            streams[idx].data   = dstMesh.BoneIndices.data();
+            streams[idx].size   = sizeof(dstMesh.BoneIndices[0]) * dstMesh.BoneIndices.size();
+            streams[idx].stride = sizeof(dstMesh.BoneIndices[0]);
+            idx++;
+        }
 
-            // 頂点インデックスを再マッピング.
-            meshopt_remapIndexBuffer(
-                indices.data(),
-                vertexIndices.data(),
-                vertexIndices.size(),
-                remap.data());
+        if (!dstMesh.BoneWeights.empty())
+        {
+            streams[idx].data   = dstMesh.BoneWeights.data();
+            streams[idx].size   = sizeof(dstMesh.BoneWeights[0]) * dstMesh.BoneWeights.size();
+            streams[idx].stride = sizeof(dstMesh.BoneWeights[0]);
+            idx++;
+        }
 
+        auto vertexCount = meshopt_generateVertexRemapMulti(
+            remap.data(),
+            vertexIndices.data(),
+            vertexIndices.size(),
+            dstMesh.Positions.size(),
+            streams,
+            idx
+        );
+
+        std::vector<uint32_t> indices(vertexIndices.size());
+
+        // 頂点インデックスを再マッピング.
+        meshopt_remapIndexBuffer(
+            indices.data(),
+            vertexIndices.data(),
+            vertexIndices.size(),
+            remap.data());
+
+        // 頂点キャッシュ最適化.
+        meshopt_optimizeVertexCache(
+            vertexIndices.data(),
+            indices.data(),
+            indices.size(),
+            vertexCount);
+
+        // 不要になったメモリを解放.
+        indices.clear();
+        indices.shrink_to_fit();
+
+        meshopt_optimizeVertexFetchRemap(
+            vertexIndices.data(),
+            vertexIndices.data(),
+            vertexIndices.size(),
+            vertexCount);
+
+        {
             // 頂点データを再マッピング.
             meshopt_remapVertexBuffer(
-                vertices.data(),
-                dstMesh.Vertices.data(),
-                dstMesh.Vertices.size(),
-                sizeof(dstMesh.Vertices[0]),
+                dstMesh.Positions.data(),
+                dstMesh.Positions.data(),
+                dstMesh.Positions.size(),
+                sizeof(dstMesh.Positions[0]),
                 remap.data());
 
-            meshopt_remapVertexBuffer(
-                skinVertices.data(),
-                dstMesh.SkinVertices.data(),
-                dstMesh.SkinVertices.size(),
-                sizeof(dstMesh.SkinVertices[0]),
-                remap.data());
-
-
-            // 不要になったメモリを解放.
-            remap.clear();
-            remap.shrink_to_fit();
-
-            // 最適化したサイズにメモリ量を減らす.
-            dstMesh.Vertices    .resize(vertices.size());
-            dstMesh.SkinVertices.resize(skinVertices.size());
-            vertexIndices       .resize(indices .size());
-
-            // 不要になったメモリを解放.
-            vertices.clear();
-            vertices.shrink_to_fit();
-
-            skinVertices.clear();
-            skinVertices.shrink_to_fit();
-
-            // 頂点キャッシュ最適化.
-            meshopt_optimizeVertexCache(
-                vertexIndices.data(),
-                indices.data(),
-                indices.size(),
-                vertexCount);
-
-            // 不要になったメモリを解放.
-            indices.clear();
-            indices.shrink_to_fit();
-
-            meshopt_optimizeVertexFetchRemap(
-                vertexIndices.data(),
-                vertexIndices.data(),
-                vertexIndices.size(),
-                vertexCount);
+            dstMesh.Positions.resize(vertexCount);
+            dstMesh.Positions.shrink_to_fit();
         }
-        else
+
+        if (!dstMesh.TangentSpaces.empty())
         {
-            vertexCount = meshopt_generateVertexRemap(
-                remap.data(),
-                vertexIndices.data(),
-                vertexIndices.size(),
-                dstMesh.Vertices.data(),
-                dstMesh.Vertices.size(),
-                sizeof(asdx::ResMeshVertex));
-
-            std::vector<asdx::ResMeshVertex> vertices(vertexCount);
-            std::vector<uint32_t> indices(vertexIndices.size());
-
-            // 頂点インデックスを再マッピング.
-            meshopt_remapIndexBuffer(
-                indices.data(),
-                vertexIndices.data(),
-                vertexIndices.size(),
-                remap.data());
-
-            // 頂点データを再マッピング.
             meshopt_remapVertexBuffer(
-                vertices.data(),
-                dstMesh.Vertices.data(),
-                dstMesh.Vertices.size(),
-                sizeof(dstMesh.Vertices[0]),
+                dstMesh.TangentSpaces.data(),
+                dstMesh.TangentSpaces.data(),
+                dstMesh.TangentSpaces.size(),
+                sizeof(dstMesh.TangentSpaces[0]),
                 remap.data());
 
-            // 不要になったメモリを解放.
-            remap.clear();
-            remap.shrink_to_fit();
-
-            // 最適化したサイズにメモリ量を減らす.
-            dstMesh.Vertices.resize(vertices.size());
-            vertexIndices   .resize(indices .size());
-
-            // 頂点キャッシュ最適化.
-            meshopt_optimizeVertexCache(
-                vertexIndices.data(),
-                indices.data(),
-                indices.size(),
-                vertexCount);
-
-            // 不要になったメモリを解放.
-            indices.clear();
-            indices.shrink_to_fit();
-
-            meshopt_optimizeVertexFetch(
-                dstMesh.Vertices.data(),
-                vertexIndices.data(),
-                vertexIndices.size(),
-                vertices.data(),
-                vertices.size(),
-                sizeof(asdx::ResMeshVertex));
-
-            // 不要になったメモリを解放.
-            vertices.clear();
-            vertices.shrink_to_fit();
+            dstMesh.TangentSpaces.resize(vertexCount);
+            dstMesh.TangentSpaces.shrink_to_fit();
         }
+
+        if (!dstMesh.Colors.empty())
+        {
+            meshopt_remapVertexBuffer(
+                dstMesh.Colors.data(),
+                dstMesh.Colors.data(),
+                dstMesh.Colors.size(),
+                sizeof(dstMesh.Colors[0]),
+                remap.data());
+
+            dstMesh.Colors.resize(vertexCount);
+            dstMesh.Colors.shrink_to_fit();
+        }
+
+        for(auto i=0; i<4; ++i)
+        {
+            if (!dstMesh.TexCoords[i].empty())
+            {
+                meshopt_remapVertexBuffer(
+                    dstMesh.TexCoords[i].data(),
+                    dstMesh.TexCoords[i].data(),
+                    dstMesh.TexCoords[i].size(),
+                    sizeof(dstMesh.TexCoords[i][0]),
+                    remap.data());
+
+                dstMesh.TexCoords[i].resize(vertexCount);
+                dstMesh.TexCoords[i].shrink_to_fit();
+            }
+        }
+
+        if (!dstMesh.BoneIndices.empty())
+        {
+            meshopt_remapVertexBuffer(
+                dstMesh.BoneIndices.data(),
+                dstMesh.BoneIndices.data(),
+                dstMesh.BoneIndices.size(),
+                sizeof(dstMesh.BoneIndices[0]),
+                remap.data());
+
+            dstMesh.BoneIndices.resize(vertexCount);
+            dstMesh.BoneIndices.shrink_to_fit();
+        }
+
+        if (!dstMesh.BoneWeights.empty())
+        {
+            meshopt_remapVertexBuffer(
+                dstMesh.BoneWeights.data(),
+                dstMesh.BoneWeights.data(),
+                dstMesh.BoneWeights.size(),
+                sizeof(dstMesh.BoneWeights[0]),
+                remap.data());
+
+            dstMesh.BoneWeights.resize(vertexCount);
+            dstMesh.BoneWeights.shrink_to_fit();
+        }
+
+        // 不要になったメモリを解放.
+        remap.clear();
+        remap.shrink_to_fit();
     }
 
     // メッシュレット生成.
@@ -393,7 +455,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
                 meshlets.data(),
                 vertexIndices.data(),
                 vertexIndices.size(),
-                dstMesh.Vertices.size(),
+                dstMesh.Positions.size(),
                 kMaxVertices,
                 kMaxPrimitives));
 
@@ -420,9 +482,9 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
 
             auto bounds = meshopt_computeMeshletBounds(
                 &meshlet, 
-                &dstMesh.Vertices[0].Position.x,
-                dstMesh.Vertices.size(),
-                sizeof(dstMesh.Vertices[0]));
+                &dstMesh.Positions[0].x,
+                dstMesh.Positions.size(),
+                sizeof(dstMesh.Positions[0]));
 
             // メッシュレットデータ設定.
             asdx::ResMeshlet m = {};
