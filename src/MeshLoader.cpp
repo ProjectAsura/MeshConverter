@@ -119,6 +119,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
     for(auto i=0u; i<pSrcMesh->mNumVertices; ++i)
     {
         auto pPosition  = &(pSrcMesh->mVertices[i]);
+        dstMesh.Positions[i] = asdx::Vector3(pPosition->x, pPosition->y, pPosition->z);
 
         if (pSrcMesh->HasNormals() && pSrcMesh->HasTangentsAndBitangents())
         {
@@ -269,16 +270,16 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         std::vector<uint32_t> remap(vertexIndices.size());
 
         // 重複データを削除するための再マッピング用インデックスを生成.
-        meshopt_Stream streams[9];
+        meshopt_Stream streams[9] = {};
         streams[0].data     = dstMesh.Positions.data();
-        streams[0].size     = sizeof(dstMesh.Positions[0]) * dstMesh.Positions.size();
+        streams[0].size     = sizeof(dstMesh.Positions[0]);
         streams[0].stride   = sizeof(dstMesh.Positions[0]);
 
         auto idx = 1;
         if (!dstMesh.TangentSpaces.empty())
         {
             streams[idx].data   = dstMesh.TangentSpaces.data();
-            streams[idx].size   = sizeof(dstMesh.TangentSpaces[0]) * dstMesh.TangentSpaces.size();
+            streams[idx].size   = sizeof(dstMesh.TangentSpaces[0]);
             streams[idx].stride = sizeof(dstMesh.TangentSpaces[0]);
             idx++;
         }
@@ -286,7 +287,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         if (!dstMesh.Colors.empty())
         {
             streams[idx].data   = dstMesh.Colors.data();
-            streams[idx].size   = sizeof(dstMesh.Colors[0]) * dstMesh.Colors.size();
+            streams[idx].size   = sizeof(dstMesh.Colors[0]);
             streams[idx].stride = sizeof(dstMesh.Colors[0]);
             idx++;
         }
@@ -296,7 +297,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             if (!dstMesh.TexCoords[i].empty())
             {
                 streams[idx].data   = dstMesh.TexCoords[i].data();
-                streams[idx].size   = sizeof(dstMesh.TexCoords[i][0]) * dstMesh.TexCoords[i].size();
+                streams[idx].size   = sizeof(dstMesh.TexCoords[i][0]);
                 streams[idx].stride = sizeof(dstMesh.TexCoords[i][0]);
                 idx++;
             }
@@ -305,7 +306,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         if (!dstMesh.BoneIndices.empty())
         {
             streams[idx].data   = dstMesh.BoneIndices.data();
-            streams[idx].size   = sizeof(dstMesh.BoneIndices[0]) * dstMesh.BoneIndices.size();
+            streams[idx].size   = sizeof(dstMesh.BoneIndices[0]);
             streams[idx].stride = sizeof(dstMesh.BoneIndices[0]);
             idx++;
         }
@@ -313,7 +314,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         if (!dstMesh.BoneWeights.empty())
         {
             streams[idx].data   = dstMesh.BoneWeights.data();
-            streams[idx].size   = sizeof(dstMesh.BoneWeights[0]) * dstMesh.BoneWeights.size();
+            streams[idx].size   = sizeof(dstMesh.BoneWeights[0]);
             streams[idx].stride = sizeof(dstMesh.BoneWeights[0]);
             idx++;
         }
@@ -336,25 +337,33 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             vertexIndices.size(),
             remap.data());
 
-        // 頂点キャッシュ最適化.
-        meshopt_optimizeVertexCache(
-            vertexIndices.data(),
+        // 頂点フェッチ最適化.
+        meshopt_optimizeVertexFetchRemap(
+            remap.data(),
             indices.data(),
             indices.size(),
             vertexCount);
+
+        // もう一度実行する.
+        meshopt_remapIndexBuffer(
+            vertexIndices.data(),
+            indices.data(),
+            indices.size(),
+            remap.data());
 
         // 不要になったメモリを解放.
         indices.clear();
         indices.shrink_to_fit();
 
-        meshopt_optimizeVertexFetchRemap(
+        // 頂点キャッシュ最適化.
+        meshopt_optimizeVertexCache(
             vertexIndices.data(),
             vertexIndices.data(),
             vertexIndices.size(),
             vertexCount);
 
+        // 位置座標.
         {
-            // 頂点データを再マッピング.
             meshopt_remapVertexBuffer(
                 dstMesh.Positions.data(),
                 dstMesh.Positions.data(),
@@ -366,6 +375,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             dstMesh.Positions.shrink_to_fit();
         }
 
+        // 接線空間.
         if (!dstMesh.TangentSpaces.empty())
         {
             meshopt_remapVertexBuffer(
@@ -379,6 +389,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             dstMesh.TangentSpaces.shrink_to_fit();
         }
 
+        // 頂点カラー.
         if (!dstMesh.Colors.empty())
         {
             meshopt_remapVertexBuffer(
@@ -392,6 +403,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             dstMesh.Colors.shrink_to_fit();
         }
 
+        // テクスチャ座標.
         for(auto i=0; i<4; ++i)
         {
             if (!dstMesh.TexCoords[i].empty())
@@ -408,6 +420,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             }
         }
 
+        // ボーン番号.
         if (!dstMesh.BoneIndices.empty())
         {
             meshopt_remapVertexBuffer(
@@ -421,6 +434,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             dstMesh.BoneIndices.shrink_to_fit();
         }
 
+        // ボーンウェイト.
         if (!dstMesh.BoneWeights.empty())
         {
             meshopt_remapVertexBuffer(
@@ -496,12 +510,11 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             dstMesh.Meshlets.push_back(m);
 
             // カリングデータ設定.
-            auto sinAngle = sqrt(1.0f - bounds.cone_cutoff * bounds.cone_cutoff);
             auto normalCone = asdx::Vector4(
                 bounds.cone_axis[0] * 0.5f + 0.5f,
                 bounds.cone_axis[1] * 0.5f + 0.5f,
                 bounds.cone_axis[2] * 0.5f + 0.5f,
-                sinAngle * 0.5f + 0.5f);
+                bounds.cone_cutoff * 0.5f + 0.5f);
 
             asdx::ResCullingInfo c = {};
             c.BoundingSphere = asdx::Vector4(bounds.center[0], bounds.center[1], bounds.center[2], bounds.radius);
