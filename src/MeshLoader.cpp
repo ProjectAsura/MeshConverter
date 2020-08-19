@@ -328,39 +328,6 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             idx
         );
 
-        std::vector<uint32_t> indices(vertexIndices.size());
-
-        // 頂点インデックスを再マッピング.
-        meshopt_remapIndexBuffer(
-            indices.data(),
-            vertexIndices.data(),
-            vertexIndices.size(),
-            remap.data());
-
-        // 頂点フェッチ最適化.
-        meshopt_optimizeVertexFetchRemap(
-            remap.data(),
-            indices.data(),
-            indices.size(),
-            vertexCount);
-
-        // もう一度実行する.
-        meshopt_remapIndexBuffer(
-            vertexIndices.data(),
-            indices.data(),
-            indices.size(),
-            remap.data());
-
-        // 不要になったメモリを解放.
-        indices.clear();
-        indices.shrink_to_fit();
-
-        // 頂点キャッシュ最適化.
-        meshopt_optimizeVertexCache(
-            vertexIndices.data(),
-            vertexIndices.data(),
-            vertexIndices.size(),
-            vertexCount);
 
         // 位置座標.
         {
@@ -448,9 +415,39 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             dstMesh.BoneWeights.shrink_to_fit();
         }
 
+        std::vector<uint32_t> indices(vertexIndices.size());
+
+        // 頂点インデックスを再マッピング.
+        meshopt_remapIndexBuffer(
+            indices.data(),
+            vertexIndices.data(),
+            vertexIndices.size(),
+            remap.data());
+
+        // 頂点フェッチ最適化.
+        meshopt_optimizeVertexFetchRemap(
+            remap.data(),
+            indices.data(),
+            indices.size(),
+            vertexCount);
+
+        // もう一度実行する.
+        meshopt_remapIndexBuffer(
+            vertexIndices.data(),
+            indices.data(),
+            indices.size(),
+            remap.data());
+
         // 不要になったメモリを解放.
-        remap.clear();
-        remap.shrink_to_fit();
+        indices.clear();
+        indices.shrink_to_fit();
+
+        // 頂点キャッシュ最適化.
+        meshopt_optimizeVertexCache(
+            vertexIndices.data(),
+            vertexIndices.data(),
+            vertexIndices.size(),
+            vertexCount);
     }
 
     // メッシュレット生成.
