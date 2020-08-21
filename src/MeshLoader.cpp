@@ -16,6 +16,7 @@
 #include <cassert>
 #include <meshoptimizer.h>
 #include <asdxHash.h>
+#include <asdxHalf.h>
 
 
 //-----------------------------------------------------------------------------
@@ -147,7 +148,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
             if (pSrcMesh->HasTextureCoords(j))
             {
                 auto pTexCorod = &(pSrcMesh->mTextureCoords[j][i]);
-                dstMesh.TexCoords[j][i] = asdx::EncodeHalf2(asdx::Vector2(pTexCorod->x, pTexCorod->y));
+                dstMesh.TexCoords[j][i] = asdx::EncodeHalf2(asdx::Vector2(pTexCorod->x, pTexCorod->y)).u;
             }
         }
 
