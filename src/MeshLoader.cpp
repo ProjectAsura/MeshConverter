@@ -60,9 +60,18 @@ bool MeshLoader::Load(const char* filename, asdx::ResModel& model)
     // メッシュデータを変換.
     for(auto i=0u; i<m_pScene->mNumMeshes; ++i)
     {
-        const aiMesh* pMesh = m_pScene->mMeshes[i];
+        const auto pMesh = m_pScene->mMeshes[i];
         ParseMesh(model, pMesh);
     }
+    model.Meshes.shrink_to_fit();
+
+    // マテリアルデータを変換.
+    for(auto i=0u; i<m_pScene->mNumMaterials; ++i)
+    {
+        const auto pMaterial = m_pScene->mMaterials[i];
+        ParseMaterial(pMaterial);
+    }
+    m_Materials.shrink_to_fit();
 
     // 不要になったのでクリア.
     importer.FreeScene();
@@ -529,3 +538,50 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
 
     model.Meshes.push_back(dstMesh);
 }
+
+//-----------------------------------------------------------------------------
+//      マテリアルを解析します.
+//-----------------------------------------------------------------------------
+void MeshLoader::ParseMaterial(const aiMaterial* pSrcMaterial)
+{
+    Material dstMaterial;
+
+    // 名前取得.
+    {
+        aiString name;
+        if (pSrcMaterial->Get(AI_MATKEY_NAME, name) == AI_SUCCESS)
+        { 
+            dstMaterial.Name = name.C_Str();
+            dstMaterial.Hash = asdx::Fnv1a(name.C_Str()).GetHash();
+        }
+    }
+
+    // テクスチャ取得.
+    for(uint32_t t = aiTextureType_NONE; t < aiTextureType_UNKNOWN; ++t)
+    {
+        auto type = aiTextureType(t);
+        auto count = pSrcMaterial->GetTextureCount(type);
+        for(auto i=0u; i<count; ++i)
+        {
+            aiString path;
+            auto ret = pSrcMaterial->GetTexture(type, i, &path);
+            if (ret == aiReturn_SUCCESS)
+            {
+                TextureInfo texture;
+                texture.Usage   = TEXTURE_USAGE(type);
+                texture.Path    = path.C_Str();
+                dstMaterial.Textures.push_back(texture);
+            }
+        }
+    }
+
+    dstMaterial.Textures.shrink_to_fit();
+    m_Materials.push_back(dstMaterial);
+}
+
+//-----------------------------------------------------------------------------
+//      マテリアルを取得します.
+//-----------------------------------------------------------------------------
+const std::vector<Material>& MeshLoader::GetMaterials() const
+{ return m_Materials; }
+
