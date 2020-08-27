@@ -164,7 +164,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
         if (pSrcMesh->HasVertexColors(0))
         {
             auto pColor = &(pSrcMesh->mColors[0][i]);
-            dstMesh.Colors[i] = asdx::ToUnorm(asdx::Vector4(pColor->r, pColor->g, pColor->b, pColor->a));
+            dstMesh.Colors[i] = asdx::EncodeUnorm4(asdx::Vector4(pColor->r, pColor->g, pColor->b, pColor->a));
         }
 
         if (pSrcMesh->HasBones())
@@ -525,7 +525,7 @@ void MeshLoader::ParseMesh(asdx::ResModel& model, const aiMesh* pSrcMesh)
 
             asdx::ResCullingInfo c = {};
             c.BoundingSphere = asdx::Vector4(bounds.center[0], bounds.center[1], bounds.center[2], bounds.radius);
-            c.NormalCone     = asdx::ToUnorm(normalCone);
+            c.NormalCone     = asdx::EncodeUnorm4(normalCone);
             dstMesh.CullingInfos.push_back(c);
         }
 
