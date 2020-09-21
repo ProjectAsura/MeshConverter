@@ -16,7 +16,6 @@
 #include <cassert>
 #include <meshoptimizer.h>
 #include <asdxHash.h>
-#include <asdxHalf.h>
 
 
 //-----------------------------------------------------------------------------
